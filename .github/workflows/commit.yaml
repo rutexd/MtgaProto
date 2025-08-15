@@ -35,8 +35,7 @@ jobs:
           fetch-depth: 1
       - run: |
           echo $Env:GITHUB_WORKSPACE
-          cd "C:\Program Files (x86)\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\"
-          .\MSBuild.exe $Env:GITHUB_WORKSPACE\MsiExtractor\MsiExtractor.sln
+          MSBuild.exe $Env:GITHUB_WORKSPACE\MsiExtractor\MsiExtractor.sln
       - id: download_msi
         run: |
           $msiUrl = ${{ steps.get_version.outputs.msiUrl }}
