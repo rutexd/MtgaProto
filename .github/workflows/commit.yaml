@@ -1,12 +1,13 @@
 name: Check latest MTGA version on commit
+
 on:
   push:
     paths-ignore:
-    - 'README.md'
+      - 'README.md'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version'     
+        description: 'Version'
         required: false
 
 env:
@@ -21,21 +22,29 @@ jobs:
         with:
           path: ${{ github.event.repository.name }}
           fetch-depth: 1
+
       - run: npm install
         working-directory: ./${{ github.event.repository.name }}/.github/actions/check-version-action
+
       - id: get_version
         uses: ./MtgaProto/.github/actions/check-version-action
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/checkout@v3
         with:
           repository: riQQ/MsiExtractor
           ref: refs/heads/master
           path: MsiExtractor
           fetch-depth: 1
-      - run: |
-          echo $Env:GITHUB_WORKSPACE
-          MSBuild.exe $Env:GITHUB_WORKSPACE\MsiExtractor\MsiExtractor.sln
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1
+
+      - name: Build MsiExtractor solution
+        run: msbuild $Env:GITHUB_WORKSPACE\MsiExtractor\MsiExtractor.sln
+        shell: powershell
+
       - id: download_msi
         run: |
           $msiUrl = ${{ steps.get_version.outputs.msiUrl }}
@@ -46,12 +55,14 @@ jobs:
           echo $msiFilePath
           (New-Object System.Net.WebClient).DownloadFile($msiUrl, $msiFilePath)
           echo "msiFilePath=$msiFilePath" >> $Env:GITHUB_OUTPUT
+
       - name: Run MsiExtractor
         run: |
           cd "$Env:GITHUB_WORKSPACE\MsiExtractor\MsiExtractor\bin\Debug"
           .\MsiExtractor.exe ${{ steps.download_msi.outputs.msiFilePath }} "${{env.DLL_NAME}}"
           $outputDirectory = Split-Path -Parent ${{ steps.download_msi.outputs.msiFilePath }}
           dir "$outputDirectory"
+
       - name: Checkout proto extractor
         uses: actions/checkout@v3
         with:
@@ -59,12 +70,15 @@ jobs:
           ref: refs/heads/mtgatool-formatting
           path: proto-extractor
           fetch-depth: 1
+
       - uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '2.1.805' # SDK Version to use
+
       - name: Build proto extractor
         run: dotnet build
         working-directory: ${{github.workspace}}\proto-extractor\extractor
+
       - name: Run proto extractor
         id: extract-proto
         run: |
@@ -73,11 +87,11 @@ jobs:
           $protoFile = Get-Childitem -Path "${{github.workspace}}" -Filter *.proto | Select -First 1
           echo "protoPath=$($protoFile.FullName)" >> $Env:GITHUB_OUTPUT
         working-directory: ${{github.workspace}}\proto-extractor\extractor
+
       - name: Commit proto
         if: github.ref_name == 'master'
         working-directory: ${{ github.event.repository.name }}
         run: |
-          # full error details
           $ErrorView = 'NormalView'
           Copy-Item "${{steps.extract-proto.outputs.protoPath}}" -Destination "messages.proto"
           git status
@@ -94,8 +108,8 @@ jobs:
           
           echo "Commiting and pushing changes"
           git commit -m "Update proto"
-          # print progress to stdout instead of stderr to don't cause an error in powershell
           git push --porcelain
+
       - name: Upload proto as artifact
         uses: actions/upload-artifact@v4
         with:
